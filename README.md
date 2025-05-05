@@ -1,6 +1,6 @@
-# Universal Web Scraper - Flask Version 🦑
+# Web Scraper - Flask App 🦑
 
-This is a Flask-based version of the Universal Web Scraper application. It allows you to scrape web content using AI models to extract structured data.
+This is a Flask-based version of the Web Scraper application. It allows you to scrape web content using AI models to extract structured data.
 
 ## Features
 
