@@ -1,0 +1,592 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+  .url-bubble {
+    background-color: #E6F9F3;
+    color: #0074D9;
+    border-radius: 15px;
+    padding: 8px 12px;
+    margin: 5px;
+    display: inline-block;
+    font-weight: bold;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .url-bubble-container {
+    margin-top: 10px;
+    min-height: 40px;
+    border: 1px dashed #ccc;
+    border-radius: 5px;
+    padding: 10px;
+  }
+  
+  .delete-url {
+    margin-left: 5px;
+    cursor: pointer;
+    color: #dc3545;
+  }
+  
+  .field-tag {
+    background-color: #f0f8ff;
+    color: #0066cc;
+    border-radius: 15px;
+    padding: 5px 10px;
+    margin: 5px;
+    display: inline-block;
+    font-weight: bold;
+  }
+  
+  .card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 24px;
+  }
+  
+  .card-header {
+    background-color: #f8f9fa;
+    border-bottom: none;
+    font-weight: 600;
+  }
+  
+  .feature-icon {
+    font-size: 24px;
+    color: #0d6efd;
+    margin-bottom: 15px;
+  }
+  
+  .url-section {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  
+  #urlBubbleContainer {
+    min-height: 50px;
+  }
+</style>
+{% endblock %}
+
+{% block sidebar %}
+<!-- API Keys -->
+<div class="accordion mt-3" id="apiKeysAccordion">
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="apiKeysHeading">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#apiKeysCollapse" aria-expanded="false" aria-controls="apiKeysCollapse">
+        API Keys
+      </button>
+    </h2>
+    <div id="apiKeysCollapse" class="accordion-collapse collapse" aria-labelledby="apiKeysHeading" data-bs-parent="#apiKeysAccordion">
+      <div class="accordion-body">
+        <form id="apiKeysForm">
+          {% for model, required_keys in models.items() %}
+            {% for key_name in required_keys %}
+              <div class="mb-3">
+                <label for="{{ key_name }}" class="form-label">{{ key_name }}</label>
+                <input type="password" class="form-control" id="{{ key_name }}" name="{{ key_name }}">
+              </div>
+            {% endfor %}
+          {% endfor %}
+          <div class="mb-3">
+            <label for="DATABASE_URL" class="form-label">DATABASE URL</label>
+            <input type="text" class="form-control" id="DATABASE_URL" name="DATABASE_URL">
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Save Keys</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Model Selection -->
+<div class="mb-3 mt-3">
+  <label for="modelSelection" class="form-label">Select Model</label>
+  <select class="form-select" id="modelSelection" name="model_selection">
+    {% for model in models %}
+      <option value="{{ model }}">{{ model }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<!-- Gemini Settings -->
+<div id="geminiSettings" class="mb-3" style="display: none;">
+  <hr>
+  <h6>Gemini API Settings</h6>
+  <label for="maxOutputTokens" class="form-label">Max Output Tokens</label>
+  <input type="range" class="form-range" min="100" max="8192" step="100" value="2048" id="maxOutputTokens">
+  <div class="d-flex justify-content-between">
+    <small>100</small>
+    <small id="tokenValue">2048</small>
+    <small>8192</small>
+  </div>
+</div>
+
+<hr>
+
+<!-- URL Input Section -->
+<h5>URL Input Section</h5>
+<div class="mb-3">
+  <label for="urlTextarea" class="form-label">Enter one or more URLs:</label>
+  <textarea class="form-control" id="urlTextarea" rows="3" placeholder="Enter URLs (space/tab/newline separated)"></textarea>
+</div>
+<div class="mb-3">
+  <button id="addUrlsBtn" class="btn btn-primary btn-sm">Add URLs</button>
+  <button id="clearUrlsBtn" class="btn btn-danger btn-sm">Clear URLs</button>
+</div>
+
+<div class="mb-3">
+  <div class="form-label">Added URLs</div>
+  <div id="urlBubbleContainer" class="url-bubble-container"></div>
+</div>
+
+<hr>
+
+<!-- Fields to Extract -->
+<div class="mb-3 form-check">
+  <input type="checkbox" class="form-check-input" id="enableScraping">
+  <label class="form-check-label" for="enableScraping">Enable Scraping</label>
+</div>
+
+<div id="fieldsContainer" style="display: none;">
+  <div class="mb-3">
+    <label for="fieldInput" class="form-label">Enter Fields to Extract:</label>
+    <div class="input-group mb-3">
+      <input type="text" class="form-control" id="fieldInput" placeholder="Enter a field name">
+      <button class="btn btn-outline-secondary" type="button" id="addFieldBtn">Add</button>
+    </div>
+  </div>
+  <div id="fieldsTagContainer"></div>
+</div>
+
+<hr>
+
+<!-- Pagination -->
+<div class="mb-3 form-check">
+  <input type="checkbox" class="form-check-input" id="enablePagination">
+  <label class="form-check-label" for="enablePagination">Enable Pagination</label>
+</div>
+
+<div id="paginationContainer" style="display: none;">
+  <div class="mb-3">
+    <label for="paginationDetails" class="form-label">Enter Pagination Details (optional)</label>
+    <textarea class="form-control" id="paginationDetails" rows="2" placeholder="Describe how to navigate through pages"></textarea>
+  </div>
+</div>
+
+<hr>
+
+<!-- Launch Button -->
+<div class="d-grid gap-2">
+  <button id="launchBtn" class="btn btn-primary btn-lg">LAUNCH</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-lg-12">
+    <div class="card">
+      <div class="card-body">
+        <h1 class="card-title text-center mb-4">Web Scraper Pro <i class="fa-solid fa-spider text-primary"></i></h1>
+        <p class="text-center">Extract structured data from websites using AI. Configure your settings below and launch the scraper.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Database Warning -->
+<div id="databaseWarning" class="alert alert-danger" role="alert" style="display: none;">
+  <h4 class="alert-heading">🚨 Database is not configured!</h4>
+  <p>This project requires a database to function.</p>
+  <hr>
+  <p class="mb-0">Follow these steps to set it up:</p>
+  <ol>
+    <li><strong>Create a <code>.env</code> file</strong> in the project root directory.</li>
+    <li><strong>Add the following to your <code>.env</code> file</strong>:
+      <pre><code>DATABASE_URL=sqlite:///webscraped_data.db</code></pre>
+    </li>
+    <li><strong>For production environments</strong>, you can use PostgreSQL or MySQL:
+      <pre><code># PostgreSQL example
+DATABASE_URL=postgresql://username:password@localhost/dbname
+
+# MySQL example
+DATABASE_URL=mysql+pymysql://username:password@localhost/dbname</code></pre>
+    </li>
+    <li><strong>Install required dependencies</strong>:
+      <pre><code>pip install sqlalchemy pymysql psycopg2-binary</code></pre>
+    </li>
+    <li><strong>Restart the project</strong>, and you're good to go! 🚀</li>
+  </ol>
+</div>
+
+<div id="errorAlert" class="alert alert-danger" style="display: none;" role="alert">
+  <strong>Error!</strong> <span id="errorMessage"></span>
+</div>
+
+<!-- Main Configuration -->
+<div class="row">
+  <!-- URL Input Section -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <i class="fas fa-link me-2"></i>URL Configuration
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label for="urlTextarea" class="form-label">Enter URLs to Scrape</label>
+          <textarea class="form-control" id="urlTextarea" rows="3" placeholder="Enter URLs (space/tab/newline separated)"></textarea>
+        </div>
+        <div class="mb-3">
+          <button id="addUrlsBtn" class="btn btn-primary"><i class="fas fa-plus me-1"></i>Add URLs</button>
+          <button id="clearUrlsBtn" class="btn btn-outline-danger"><i class="fas fa-trash me-1"></i>Clear</button>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Added URLs</label>
+          <div class="border rounded p-2 url-section">
+            <div id="urlBubbleContainer" class="d-flex flex-wrap"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Model & Field Selection -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <i class="fas fa-cog me-2"></i>Scraping Options
+      </div>
+      <div class="card-body">
+        <!-- Model Selection -->
+        <div class="mb-3">
+          <label for="modelSelection" class="form-label">Select AI Model</label>
+          <select class="form-select" id="modelSelection" name="model_selection">
+            {% for model in models %}
+              <option value="{{ model }}">{{ model }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <!-- Gemini Settings -->
+        <div id="geminiSettings" class="mb-3 p-3 border rounded" style="display: none;">
+          <h6 class="mb-2">Gemini API Settings</h6>
+          <label for="maxOutputTokens" class="form-label">Max Output Tokens: <span id="tokenValue">2048</span></label>
+          <input type="range" class="form-range" min="100" max="8192" step="100" value="2048" id="maxOutputTokens">
+          <div class="d-flex justify-content-between">
+            <small>100</small>
+            <small>8192</small>
+          </div>
+        </div>
+        
+        <!-- Fields to Extract -->
+        <div class="mb-3 form-check">
+          <input type="checkbox" class="form-check-input" id="enableScraping">
+          <label class="form-check-label" for="enableScraping">Enable Data Extraction</label>
+        </div>
+        
+        <div id="fieldsContainer" style="display: none;">
+          <div class="mb-3">
+            <label for="fieldInput" class="form-label">Enter Fields to Extract</label>
+            <div class="input-group mb-3">
+              <input type="text" class="form-control" id="fieldInput" placeholder="Enter a field name">
+              <button class="btn btn-outline-primary" type="button" id="addFieldBtn">Add</button>
+            </div>
+          </div>
+          <div class="border rounded p-2 mb-3">
+            <div id="fieldsTagContainer" class="d-flex flex-wrap"></div>
+          </div>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="mb-3 form-check">
+          <input type="checkbox" class="form-check-input" id="enablePagination">
+          <label class="form-check-label" for="enablePagination">Enable Pagination</label>
+        </div>
+        
+        <div id="paginationContainer" style="display: none;">
+          <div class="mb-3">
+            <label for="paginationDetails" class="form-label">Pagination Details</label>
+            <textarea class="form-control" id="paginationDetails" rows="2" placeholder="Describe how to navigate through pages"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Launch Button -->
+<div class="row mb-5">
+  <div class="col-12">
+    <div class="d-grid gap-2">
+      <button id="launchBtn" class="btn btn-lg btn-success">
+        <i class="fas fa-rocket me-2"></i>Start Scraping
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading Spinner -->
+<div id="loadingSpinner" style="display: none;">
+  <div class="d-flex justify-content-center my-5">
+    <div class="card w-100">
+      <div class="card-body text-center p-5">
+        <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <h4 class="mt-3">Processing Your Request</h4>
+        <p class="text-muted">This may take a few moments while we extract data from the provided URLs...</p>
+        <div class="progress mt-3">
+          <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Feature Information -->
+<div class="row mb-4">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center">
+        <div class="feature-icon">
+          <i class="fas fa-robot"></i>
+        </div>
+        <h5 class="card-title">AI-Powered</h5>
+        <p class="card-text">Extract structured data using advanced AI models that understand content context.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center">
+        <div class="feature-icon">
+          <i class="fas fa-table"></i>
+        </div>
+        <h5 class="card-title">Structured Output</h5>
+        <p class="card-text">Get clean, structured data in table format ready for analysis or export to CSV/JSON.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body text-center">
+        <div class="feature-icon">
+          <i class="fas fa-database"></i>
+        </div>
+        <h5 class="card-title">Data Storage</h5>
+        <p class="card-text">Results automatically saved to your database for future reference and analysis.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  $(document).ready(function() {
+    // Check if database is initialized
+    if ("{{ db_initialized }}" === "False") {
+      $('#databaseWarning').show();
+    }
+    
+    // Show Gemini settings if model includes "gemini"
+    $('#modelSelection').change(function() {
+      if ($(this).val().toLowerCase().includes('gemini')) {
+        $('#geminiSettings').show();
+      } else {
+        $('#geminiSettings').hide();
+      }
+    }).trigger('change');
+    
+    // Update token value display
+    $('#maxOutputTokens').on('input', function() {
+      $('#tokenValue').text($(this).val());
+    });
+    
+    // Toggle fields container
+    $('#enableScraping').change(function() {
+      if ($(this).is(':checked')) {
+        $('#fieldsContainer').show();
+      } else {
+        $('#fieldsContainer').hide();
+      }
+    });
+    
+    // Toggle pagination container
+    $('#enablePagination').change(function() {
+      if ($(this).is(':checked')) {
+        $('#paginationContainer').show();
+      } else {
+        $('#paginationContainer').hide();
+      }
+    });
+    
+    // Handle URL input
+    const urls = [];
+    
+    function updateUrlBubbles() {
+      const container = $('#urlBubbleContainer');
+      container.empty();
+      
+      if (urls.length === 0) {
+        container.html('<span class="text-muted fst-italic">No URLs added yet</span>');
+        return;
+      }
+      
+      urls.forEach(function(url, index) {
+        const bubble = $('<div class="url-bubble"></div>').text(url);
+        const deleteBtn = $('<span class="delete-url"><i class="fas fa-times"></i></span>');
+        
+        deleteBtn.click(function() {
+          urls.splice(index, 1);
+          updateUrlBubbles();
+        });
+        
+        bubble.append(deleteBtn);
+        container.append(bubble);
+      });
+    }
+    
+    $('#addUrlsBtn').click(function() {
+      const urlText = $('#urlTextarea').val().trim();
+      if (urlText) {
+        const newUrls = urlText.split(/\s+/).filter(url => url);
+        urls.push(...newUrls);
+        $('#urlTextarea').val('');
+        updateUrlBubbles();
+      }
+    });
+    
+    $('#clearUrlsBtn').click(function() {
+      urls.length = 0;
+      updateUrlBubbles();
+    });
+    
+    // Initialize URL bubbles
+    updateUrlBubbles();
+    
+    // Handle fields input
+    const fields = [];
+    
+    function updateFieldTags() {
+      const container = $('#fieldsTagContainer');
+      container.empty();
+      
+      if (fields.length === 0) {
+        container.html('<span class="text-muted fst-italic">No fields added yet</span>');
+        return;
+      }
+      
+      fields.forEach(function(field, index) {
+        const tag = $('<div class="field-tag"></div>').text(field);
+        const deleteBtn = $('<span class="delete-url"><i class="fas fa-times"></i></span>');
+        
+        deleteBtn.click(function() {
+          fields.splice(index, 1);
+          updateFieldTags();
+        });
+        
+        tag.append(deleteBtn);
+        container.append(tag);
+      });
+    }
+    
+    // Initialize field tags
+    updateFieldTags();
+    
+    $('#addFieldBtn').click(function() {
+      const field = $('#fieldInput').val().trim();
+      if (field) {
+        fields.push(field);
+        $('#fieldInput').val('');
+        updateFieldTags();
+      }
+    });
+    
+    $('#fieldInput').keypress(function(e) {
+      if (e.which === 13) { // Enter key
+        e.preventDefault();
+        $('#addFieldBtn').click();
+      }
+    });
+    
+    // API Keys form
+    $('#apiKeysForm').submit(function(e) {
+      e.preventDefault();
+      
+      $.ajax({
+        url: '/api_keys',
+        type: 'POST',
+        data: $(this).serialize(),
+        success: function(response) {
+          if (response.status === 'success') {
+            alert('API keys updated successfully!');
+          }
+        }
+      });
+    });
+    
+    // Launch button
+    $('#launchBtn').click(function() {
+      // Validation
+      if (urls.length === 0) {
+        showNotification('Please enter at least one URL.', 'danger');
+        return;
+      }
+      
+      if ($('#enableScraping').is(':checked') && fields.length === 0) {
+        showNotification('Please enter at least one field to extract.', 'danger');
+        return;
+      }
+      
+      // Show loading spinner
+      $('#loadingSpinner').show();
+      
+      // Prepare form data
+      const formData = new FormData();
+      
+      // Add URLs
+      urls.forEach(url => {
+        formData.append('urls[]', url);
+      });
+      
+      // Add fields
+      fields.forEach(field => {
+        formData.append('fields[]', field);
+      });
+      
+      // Add other form data
+      formData.append('model_selection', $('#modelSelection').val());
+      formData.append('use_pagination', $('#enablePagination').is(':checked'));
+      formData.append('pagination_details', $('#paginationDetails').val());
+      
+      if ($('#modelSelection').val().toLowerCase().includes('gemini')) {
+        formData.append('max_output_tokens', $('#maxOutputTokens').val());
+      }
+      
+      // Send AJAX request
+      $.ajax({
+        url: '/scrape',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+          $('#loadingSpinner').hide();
+          
+          if (response.status === 'success') {
+            window.location.href = '/results';
+          } else {
+            $('#errorMessage').text(response.message);
+            $('#errorAlert').show();
+          }
+        },
+        error: function(xhr, status, error) {
+          $('#loadingSpinner').hide();
+          $('#errorMessage').text('An error occurred: ' + error);
+          $('#errorAlert').show();
+        }
+      });
+    });
+  });
+</script>
+{% endblock %} 
